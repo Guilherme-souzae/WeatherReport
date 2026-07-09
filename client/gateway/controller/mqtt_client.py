@@ -1,56 +1,33 @@
 import json
 import paho.mqtt.client as mqtt
+from kafka_client import KafkaClient
 
 
-BROKER = "localhost"
-PORT = 1883
-TOPIC = "weather/+/readings"
+class MqttClient:
 
+    def __init__(self):
+        self.BROKER = "localhost"
+        self.PORT = 1883
+        self.TOPIC = "weather/+/readings"
 
-def on_connect(client, userdata, flags, reason_code, properties=None):
-    print("Conectado ao broker MQTT!")
+        self.kafka_client = KafkaClient(self.TOPIC)
 
-    # Inscreve-se em todas as estações
-    client.subscribe(TOPIC)
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
 
+    def on_connect(self, client, userdata, flags, reason_code, properties=None):
+        print("Conectado!")
+        client.subscribe(self.TOPIC)
 
-def on_message(client, userdata, msg):
+    def on_message(self, client, userdata, msg):
+        print("MENSAGEM RECEBIDA")
+        payload = json.loads(msg.payload.decode())
 
-    print("=" * 40)
-    print(f"Tópico: {msg.topic}")
+        print(payload)
 
-    # Converte bytes -> string -> dict
-    payload = json.loads(msg.payload.decode())
+        self.kafka_client.produce_msg(payload)
 
-    print("Dados recebidos:")
-    print(payload)
-
-    # Descobre qual estação enviou
-    device_id = msg.topic.split("/")[1]
-
-    print(f"Dispositivo: {device_id}")
-
-    temperatura = payload["temperature"]
-    umidade = payload["humidity"]
-    pressao = payload["pressure"]
-
-    print(f"Temperatura: {temperatura}")
-    print(f"Umidade: {umidade}")
-    print(f"Pressão: {pressao}")
-
-    # Aqui futuramente você faria:
-    #
-    # evento = WeatherReading(...)
-    # kafka.publish("weather.readings", evento)
-    #
-    # Por enquanto apenas exibimos.
-
-
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
-client.on_connect = on_connect
-client.on_message = on_message
-
-client.connect(BROKER, PORT)
-
-client.loop_forever()
+    def start(self):
+        self.client.connect(self.BROKER, self.PORT)
+        self.client.loop_forever()
